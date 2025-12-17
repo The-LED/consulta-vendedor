@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Consulta de Vendedor por Projeto</title>
+
+  <style>
+    /* Fundo escuro */
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Arial, sans-serif;
+      background: #000000;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    /* Logo fixo no canto superior direito */
+    .logo {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      width: 140px;
+      height: auto;
+      opacity: 1;
+      z-index: 9999;
+    }
+
+    /* Cartão do formulário (bem visível) */
+    .card {
+      width: 100%;
+      max-width: 720px;
+      background: #121a25;            /* <- contraste com o fundo */
+      border: 2px solid #ffffff33;
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.55);
+    }
+
+    h1 {
+      margin: 0 0 10px 0;
+      font-size: 22px;
+    }
+
+    p {
+      margin: 0 0 18px 0;
+      color: rgba(255,255,255,0.75);
+    }
+
+    label {
+      display: block;
+      margin: 14px 0 6px;
+      font-weight: 700;
+    }
+
+    input {
+      width: 100%;
+      padding: 12px 12px;
+      border-radius: 10px;
+      border: 2px solid #ffffff;     /* borda branca */
+      background: transparent;        /* fundo escuro */
+      color: #ffffff;                 /* texto branco */
+      outline: none;
+      box-sizing: border-box;
+      font-size: 14px;
+    }
+
+    input::placeholder {
+      color: rgba(255,255,255,0.55);
+    }
+
+    .row {
+      display: flex;
+      gap: 10px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      padding: 11px 14px;
+      border-radius: 10px;
+      border: 2px solid #ffffff;
+      background: transparent;
+      color: #ffffff;
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    button:hover {
+      background: rgba(255,255,255,0.12);
+    }
+
+    .status {
+      margin-top: 12px;
+      min-height: 18px;
+      font-weight: 700;
+    }
+
+    .ok { color: #23d18b; }
+    .err { color: #ff4d4d; }
+
+    /* Um detalhe para não ficar “tudo grudado” */
+    .spacer { height: 8px; }
+  </style>
+</head>
+
+<body>
+
+  <!-- ✅ AQUI você troca o nome do arquivo da imagem -->
+  <!-- Exemplo: se você subiu "logo-the-led.png" na mesma pasta do HTML, coloque exatamente esse nome. -->
+  <img class="logo" src="opa.jpg" alt="THE LED" />
+
+  <div class="card">
+    <h1>Consulta de Vendedor por Projeto</h1>
+    <p>Digite o projeto e clique em consultar. O vendedor aparecerá no campo abaixo (com opção de copiar).</p>
+
+    <label for="projeto">Projeto</label>
+    <input id="projeto" placeholder="Ex.: PRJ001 ou Nome do Projeto" autocomplete="off" />
+
+    <div class="row">
+      <button id="btnConsultar" type="button">Consultar</button>
+      <button id="btnLimpar" type="button">Limpar</button>
+    </div>
+
+    <div id="status" class="status"></div>
+
+    <div class="spacer"></div>
+
+    <label for="vendedor">Vendedor</label>
+    <input id="vendedor" readonly placeholder="O vendedor aparecerá aqui" />
+
+    <div class="row">
+      <button id="btnCopiar" type="button">Copiar vendedor</button>
+    </div>
+  </div>
+
+  <script>
+    // ✅ AQUI você coloca a Invoke URL - POST do Maestro
+    const INVOKE_POST_URL = "https://ue2pct2dnqdukbie6pcbshugcq0pkxcf.lambda-url.us-east-1.on.aws/?token=theled.135724.zCDw9METKLjZ14nre8GtYBVmkbP2RQTUyuXVLJrp1lO7qzQeJZjyRvsA60Pmx0c8";
+
+    // (Opcional) se você quiser mandar uma chave no header
+    const API_KEY = "";
+
+    const elProjeto  = document.getElementById("projeto");
+    const elVendedor = document.getElementById("vendedor");
+    const elStatus   = document.getElementById("status");
+
+    function setStatus(msg, cls) {
+      elStatus.textContent = msg || "";
+      elStatus.className = "status " + (cls || "");
+    }
+
+    async function consultar() {
+      const projeto = elProjeto.value.trim();
+      elVendedor.value = "";
+
+      if (!projeto) {
+        setStatus("Informe um projeto para consultar.", "err");
+        return;
+      }
+
+      setStatus("Consultando...", "");
+
+      try {
+        const resp = await fetch(INVOKE_POST_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(API_KEY ? { "x-api-key": API_KEY } : {})
+          },
+          body: JSON.stringify({
+            action: "get_seller",
+            projeto: projeto
+          })
+        });
+
+        if (!resp.ok) {
+          const raw = await resp.text();
+          setStatus("Erro HTTP " + resp.status + ": " + raw, "err");
+          return;
+        }
+
+        const data = await resp.json();
+
+        // Ajuste conforme seu retorno real do Maestro
+        const vendedor = data.vendedor || data.seller || data.seller_name || data.nome_vendedor || "";
+
+        if (!vendedor) {
+          setStatus(data.message || "Não foi possível obter o vendedor para esse projeto.", "err");
+          return;
+        }
+
+        elVendedor.value = vendedor;
+        setStatus("Consulta concluída.", "ok");
+      } catch (e) {
+        setStatus("Falha na consulta: " + e.message + " (possível CORS/rede).", "err");
+      }
+    }
+
+    async function copiar() {
+      const val = elVendedor.value.trim();
+      if (!val) {
+        setStatus("Nada para copiar.", "err");
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(val);
+        setStatus("Vendedor copiado.", "ok");
+      } catch {
+        elVendedor.select();
+        document.execCommand("copy");
+        setStatus("Vendedor copiado.", "ok");
+      }
+    }
+
+    document.getElementById("btnConsultar").addEventListener("click", consultar);
+    document.getElementById("btnCopiar").addEventListener("click", copiar);
+    document.getElementById("btnLimpar").addEventListener("click", () => {
+      elProjeto.value = "";
+      elVendedor.value = "";
+      setStatus("", "");
+    });
+
+    elProjeto.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") consultar();
+    });
+  </script>
+</body>
+</html>
